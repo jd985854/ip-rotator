@@ -1,0 +1,1 @@
+echo -e "venv/\n__pycache__/\n*.pyc\n*.log\n*.pid\n.DS_Store" > .gitignore
