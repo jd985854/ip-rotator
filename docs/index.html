@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dynamic IP Rotator – Terminal Demo</title>
+  <style>
+    /* ============================================================
+       macOS/Linux TERMINAL STYLING
+    ============================================================ */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #1e1e2f; /* fallback */
+      background: radial-gradient(circle at 20% 30%, #2b2b3a, #0d0d14);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      font-family: 'Menlo', 'Monaco', 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    /* ---- Terminal Window ---- */
+    .terminal-window {
+      width: 100%;
+      max-width: 980px;
+      background: #1a1e26;
+      border-radius: 12px;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.05) inset;
+      overflow: hidden;
+      backdrop-filter: blur(2px);
+      transition: box-shadow 0.2s;
+    }
+
+    /* ---- Title Bar (macOS style) ---- */
+    .title-bar {
+      display: flex;
+      align-items: center;
+      padding: 12px 18px;
+      background: #1a1e26;
+      border-bottom: 1px solid #2a2f3a;
+      user-select: none;
+    }
+    .window-controls {
+      display: flex;
+      gap: 8px;
+      margin-right: 16px;
+    }
+    .window-btn {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: none;
+      transition: 0.1s;
+      cursor: default;
+    }
+    .window-btn.close { background: #ff5f56; }
+    .window-btn.minimize { background: #ffbd2e; }
+    .window-btn.zoom { background: #28c840; }
+    .window-btn:hover { filter: brightness(1.2); transform: scale(1.1); }
+
+    .window-title {
+      color: #b1b9c4;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.3px;
+      flex: 1;
+      text-align: center;
+      margin-right: 60px; /* offset for centering */
+    }
+    .window-title span {
+      color: #58a6ff;
+    }
+
+    /* ---- Terminal Body ---- */
+    .terminal-body {
+      padding: 16px 20px 20px 20px;
+    }
+
+    /* ---- Interactive Controls (styled as terminal prompt) ---- */
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 16px;
+      background: #0d1117;
+      padding: 8px 14px;
+      border-radius: 6px;
+      border: 1px solid #2d313a;
+      margin-bottom: 18px;
+      font-size: 13px;
+      color: #b1b9c4;
+    }
+    .controls .prompt {
+      color: #58a6ff;
+      font-weight: 600;
+      margin-right: 4px;
+    }
+    .controls label {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .controls input {
+      background: #1a1e26;
+      border: 1px solid #2d313a;
+      color: #e6e6e6;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 13px;
+      width: 70px;
+      transition: border 0.15s;
+    }
+    .controls input:focus {
+      outline: none;
+      border-color: #58a6ff;
+      box-shadow: 0 0 0 2px rgba(88,166,255,0.2);
+    }
+    .controls input[type="text"] {
+      width: 180px;
+    }
+    .btn-run {
+      background: #238636;
+      color: #fff;
+      border: none;
+      padding: 4px 18px;
+      border-radius: 5px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 0.15s;
+      border: 1px solid #2ea043;
+      margin-left: auto;
+    }
+    .btn-run:hover { background: #2ea043; }
+    .btn-run:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      background: #2d313a;
+      border-color: #3d424b;
+      color: #868b93;
+    }
+    .status-bar {
+      color: #b1b9c4;
+      font-size: 13px;
+      background: #0d1117;
+      padding: 2px 14px;
+      border-radius: 12px;
+      border: 1px solid #2d313a;
+      white-space: nowrap;
+    }
+
+    /* ---- Progress bar (terminal style) ---- */
+    .progress-container {
+      width: 100%;
+      height: 3px;
+      background: #2d313a;
+      border-radius: 2px;
+      margin: 6px 0 14px 0;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #3fb950, #58a6ff);
+      border-radius: 2px;
+      transition: width 0.15s ease;
+    }
+
+    /* ---- Console output (the terminal log) ---- */
+    .console {
+      background: #0d1117;
+      border: 1px solid #2d313a;
+      border-radius: 6px;
+      padding: 14px 16px;
+      max-height: 520px;
+      overflow-y: auto;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #b1b9c4;
+      white-space: pre-wrap;
+      word-break: break-all;
+      font-family: inherit;
+    }
+    .console .line {
+      padding: 1px 0;
+      border-bottom: 1px solid rgba(45, 49, 58, 0.15);
+    }
+    /* Colors */
+    .green  { color: #3fb950; }
+    .red    { color: #f85149; }
+    .yellow { color: #d29922; }
+    .blue   { color: #58a6ff; }
+    .gray   { color: #8b949e; }
+    .bold   { font-weight: 600; }
+
+    /* Scrollbar */
+    .console::-webkit-scrollbar { width: 5px; }
+    .console::-webkit-scrollbar-track { background: #0d1117; }
+    .console::-webkit-scrollbar-thumb { background: #2d313a; border-radius: 2px; }
+
+    /* ---- Blinking cursor (optional) ---- */
+    .cursor-blink {
+      display: inline-block;
+      width: 8px;
+      height: 16px;
+      background: #58a6ff;
+      vertical-align: text-bottom;
+      animation: blink 1s step-end infinite;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    /* Responsive */
+    @media (max-width: 700px) {
+      .terminal-window { border-radius: 8px; }
+      .window-title { font-size: 12px; margin-right: 0; }
+      .controls { flex-direction: column; align-items: stretch; gap: 6px; }
+      .controls label { justify-content: space-between; }
+      .btn-run { margin-left: 0; }
+      .controls input[type="text"] { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="terminal-window">
+  <!-- Title Bar -->
+  <div class="title-bar">
+    <div class="window-controls">
+      <span class="window-btn close"></span>
+      <span class="window-btn minimize"></span>
+      <span class="window-btn zoom"></span>
+    </div>
+    <div class="window-title">🔄 <span>Dynamic IP Rotator</span> — bash — 80×24</div>
+  </div>
+
+  <!-- Terminal Body -->
+  <div class="terminal-body">
+    <!-- Controls (styled as prompt) -->
+    <div class="controls">
+      <span class="prompt">$</span>
+      <label>pool <input type="number" id="poolSize" value="200" min="1" max="500"></label>
+      <label>requests <input type="number" id="requestCount" value="20" min="1" max="100"></label>
+      <label>target <input type="text" id="targetUrl" value="https://httpbin.org/ip"></label>
+      <button class="btn-run" id="runBtn">▶ Run</button>
+      <span class="status-bar" id="statusText">⏸ ready</span>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-container">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+
+    <!-- Console -->
+    <div class="console" id="consoleLog">
+      <div class="line gray">💡 Set parameters and press <span class="green">▶ Run</span> to start the simulation.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ============================================================
+  //  MOCK DATA (same as before, but kept concise)
+  // ============================================================
+  const PROXY_IP_BASE = [
+    "142.93.202.130","3.137.86.220","219.93.101.63","147.45.170.190",
+    "45.133.107.238","91.107.182.124","92.118.112.32","8.212.168.170",
+    "190.60.47.61","61.49.87.3","103.228.246.220","219.93.101.62",
+    "103.122.1.13","47.238.203.170","150.136.163.51","167.86.95.198",
+    "12.50.107.219","47.237.107.41","5.161.103.41","201.77.110.129",
+    "103.161.16.195","45.88.174.195","103.155.116.238","144.31.134.29",
+    "154.206.67.83","113.204.79.230","195.248.243.36","47.251.87.199",
+    "34.140.137.151","197.221.234.149","106.14.91.83","62.133.62.184",
+    "183.110.216.128","39.102.211.64","113.208.119.142","8.148.24.225",
+    "35.224.100.167","39.104.27.89","2.78.60.10","138.201.198.53",
+    "52.188.28.218","210.177.178.148","4.221.164.109","50.210.166.34",
+    "37.187.109.70","47.119.22.92","156.38.112.11","197.221.240.240",
+    "39.104.59.56","183.215.23.242","38.190.100.106","79.174.12.190",
+    "8.219.104.50","81.177.160.200","8.221.138.111","8.221.139.222",
+    "95.140.154.156","34.204.185.68","143.42.66.91","131.153.163.222",
+    "85.192.28.47","168.110.52.228","47.52.223.161","103.213.97.78",
+    "47.116.181.146","39.102.208.149","65.108.203.35","185.200.188.234",
+    "40.89.145.14","74.176.195.135","212.47.232.28","196.1.97.198",
+    "147.45.76.207","202.183.236.219","34.43.46.91"
+  ];
+  const PORTS = ["80","443","8080","3128","1080","1081","9999","8443","81","82","88","3030","1050","9000","9091","2067","8123","50000","1082","8091","5060","9002","30005","31281","3129","10111","9443","100","1111","8181","32171","7443","5872","10800","10001"];
+  const ERROR_MSGS = [
+    "HTTPSConnectionPool(host='http')",
+    "('Connection aborted.', Remote)",
+    "HTTPSConnectionPool(host='http')",
+    "('Connection aborted.', Remote)",
+    "HTTPSConnectionPool(host='http')"
+  ];
+  const ORIGIN_IPS = [
+    "103.161.16.195","103.155.116.238","195.248.243.36",
+    "62.133.62.184","2.78.60.10","172.212.113.5",
+    "4.221.164.109","37.187.109.70","45.133.107.238",
+    "91.107.182.124","92.118.112.32","66.92.231.29",
+    "95.140.154.156","34.204.185.68","85.192.28.47",
+    "168.110.52.228","185.200.188.234","147.45.76.207",
+    "34.143.8.127","5.161.103.41"
+  ];
+
+  // ============================================================
+  //  DOM REFERENCES
+  // ============================================================
+  const consoleEl = document.getElementById('consoleLog');
+  const runBtn = document.getElementById('runBtn');
+  const statusText = document.getElementById('statusText');
+  const progressBar = document.getElementById('progressBar');
+  const poolSizeInput = document.getElementById('poolSize');
+  const requestCountInput = document.getElementById('requestCount');
+  const targetUrlInput = document.getElementById('targetUrl');
+
+  // ============================================================
+  //  UTILITY FUNCTIONS
+  // ============================================================
+  function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+  function logLine(html, colorClass = '') {
+    const line = document.createElement('div');
+    line.className = 'line';
+    if (colorClass) line.classList.add(colorClass);
+    line.innerHTML = html;
+    consoleEl.appendChild(line);
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+  }
+
+  function clearConsole() {
+    consoleEl.innerHTML = '';
+  }
+
+  function randomProxy() {
+    const ip = PROXY_IP_BASE[Math.floor(Math.random() * PROXY_IP_BASE.length)];
+    const port = PORTS[Math.floor(Math.random() * PORTS.length)];
+    return `${ip}:${port}`;
+  }
+
+  function generateProxyPool(size) {
+    const pool = new Set();
+    while (pool.size < size) {
+      pool.add(randomProxy());
+    }
+    return Array.from(pool);
+  }
+
+  // ============================================================
+  //  MAIN DEMO LOGIC
+  // ============================================================
+  async function runDemo() {
+    const poolSize = parseInt(poolSizeInput.value, 10) || 200;
+    const totalRequests = parseInt(requestCountInput.value, 10) || 20;
+    const target = targetUrlInput.value.trim() || "https://httpbin.org/ip";
+
+    if (poolSize < 1 || totalRequests < 1) {
+      alert("Pool size and requests must be at least 1.");
+      return;
+    }
+
+    runBtn.disabled = true;
+    runBtn.textContent = '⏳ Running...';
+    statusText.textContent = '⚡ in progress';
+    clearConsole();
+    progressBar.style.width = '0%';
+
+    // Legal warning
+    logLine('WARNING: This tool is for AUTHORIZED SECURITY TESTING ONLY.', 'yellow');
+    logLine('Using it without written permission is ILLEGAL.', 'yellow');
+    logLine('');
+    logLine('Do you have explicit permission? (yes/no): <span class="green">yes</span>');
+    await sleep(400);
+
+    // Fetch proxies
+    logLine('[*] Fetching fresh proxies ...');
+    await sleep(300);
+    logLine('  data.txt: 0 proxies');
+    await sleep(200);
+    const httpCount = Math.floor(poolSize * 1.2);
+    logLine(`  http.txt: ${httpCount} proxies`);
+    await sleep(200);
+    const http2Count = Math.floor(poolSize * 0.6);
+    logLine(`  http.txt: ${http2Count} proxies`);
+    await sleep(300);
+    logLine(`[*] Total unique: ${httpCount + http2Count}`);
+    await sleep(300);
+
+    // Validate
+    logLine(`[*] Validating proxies (strict, target: ${poolSize}) ...`);
+    progressBar.style.width = '0%';
+    const steps = 10;
+    for (let step = 1; step <= steps; step++) {
+      const found = Math.min(Math.round((step / steps) * poolSize), poolSize);
+      await sleep(200);
+      logLine(`  ... found ${found} stable proxies`);
+      progressBar.style.width = `${(step / steps) * 100}%`;
+    }
+    await sleep(300);
+    logLine(`[*] Found ${poolSize} stable proxies`);
+    logLine(`[*] Proxy pool ready: ${poolSize} working proxies`);
+    logLine('');
+    logLine(`[*] Target: ${target}`);
+    logLine(`[*] Requests: ${totalRequests}`);
+    logLine('');
+
+    // Generate proxy pool
+    const proxyPool = generateProxyPool(poolSize);
+
+    // Send requests
+    let successCount = 0;
+    for (let req = 1; req <= totalRequests; req++) {
+      logLine(`---<span class="yellow"> Request ${req}/${totalRequests}</span> ---`);
+      const attempts = Math.floor(Math.random() * 4) + 1;
+      let success = false;
+      for (let attempt = 1; attempt <= attempts; attempt++) {
+        const proxy = proxyPool[Math.floor(Math.random() * proxyPool.length)];
+        const error = ERROR_MSGS[Math.floor(Math.random() * ERROR_MSGS.length)];
+        if (attempt === attempts) {
+          const origin = ORIGIN_IPS[Math.floor(Math.random() * ORIGIN_IPS.length)];
+          logLine(`[${attempt}] http://${proxy}... <span class="green">✓ 200</span>`);
+          logLine(`Response: { "origin": "${origin}" }`);
+          successCount++;
+          success = true;
+        } else {
+          logLine(`[${attempt}] http://${proxy}... <span class="red">✗ ${error}</span>`);
+          await sleep(200);
+        }
+      }
+      if (!success) {
+        logLine(`<span class="red">✗ All attempts failed for request ${req}</span>`);
+      }
+      logLine('');
+      await sleep(250);
+    }
+
+    // Summary
+    const percent = Math.round((successCount / totalRequests) * 100);
+    logLine(`[*] Complete: ${successCount}/${totalRequests} successful (${percent}%)`, 'green');
+
+    runBtn.disabled = false;
+    runBtn.textContent = '▶ Run Again';
+    statusText.textContent = '✅ done';
+    progressBar.style.width = '100%';
+  }
+
+  // ============================================================
+  //  EVENT BINDING
+  // ============================================================
+  runBtn.addEventListener('click', runDemo);
+  statusText.textContent = '⏸ ready';
+</script>
+
+</body>
+</html>
